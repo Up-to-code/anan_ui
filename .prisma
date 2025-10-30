@@ -1,0 +1,462 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================
+// USER MANAGEMENT (Dashboard Access Only)
+// ============================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  email           String   @unique
+  password        String   // Hashed password
+  phoneNumber     String?  @unique
+  role            UserRole @default(USER)
+  status          UserStatus @default(ACTIVE)
+  profileImage    String?
+
+  // Verification
+  isVerified      Boolean  @default(false)
+  verificationToken String?
+  resetToken      String?
+  resetTokenExpiry DateTime?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLogin       DateTime?
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// CLIENT MANAGEMENT (From WhatsApp)
+// ============================================
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+model Client {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  phoneNumber     String      @unique
+  name            String?
+  profileImage    String?
+  status          ClientStatus @default(ACTIVE)
+
+  // Client metadata
+  language        String?     @default("ar")
+  timezone        String?
+  lastSeen        DateTime?
+
+  // Relations
+  conversations   Conversation[]
+  messages        Message[]
+  aiInteractions  AIInteraction[]
+  files           File[]
+
+  // Metadata
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("clients")
+}
+
+// ============================================
+// CONVERSATION MANAGEMENT
+// ============================================
+
+enum ConversationStatus {
+  ACTIVE
+  RESOLVED
+  ARCHIVED
+}
+
+model Conversation {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Client reference
+  clientId        String              @db.ObjectId
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Conversation details
+  status          ConversationStatus  @default(ACTIVE)
+  title           String?             // Auto-generated title from first message
+  tags            String[]            // For categorization
+
+  // Messages in this conversation
+  messages        Message[]
+
+  // Metadata
+  startedAt       DateTime            @default(now())
+  lastMessageAt   DateTime            @default(now())
+  resolvedAt      DateTime?
+
+  @@index([clientId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+// ============================================
+// MESSAGE MANAGEMENT
+// ============================================
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  LOCATION
+  TEMPLATE
+  BUTTON
+  LIST
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Message {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Conversation reference
+  conversationId  String        @db.ObjectId
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Client reference (who sent/received)
+  clientId        String        @db.ObjectId
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Message content
+  content         String
+  messageType     MessageType   @default(TEXT)
+  
+  // Media files
+  mediaUrl        String?
+  thumbnailUrl    String?
+  fileSize        Int?
+  mimeType        String?
+
+  // WhatsApp specific
+  whatsappMessageId String?     @unique
+  templateName    String?
+  buttonPayload   String?
+
+  // Message status
+  status          MessageStatus @default(SENT)
+  isFromClient    Boolean       @default(true) // true if from client, false if from bot
+  readAt          DateTime?
+  deliveredAt     DateTime?
+
+  // AI context (if message was processed by AI)
+  aiInteractionId String?       @db.ObjectId
+  aiInteraction   AIInteraction? @relation(fields: [aiInteractionId], references: [id])
+
+  // Metadata
+  timestamp       DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+
+  @@index([conversationId])
+  @@index([clientId])
+  @@index([timestamp])
+  @@index([whatsappMessageId])
+  @@index([isFromClient])
+  @@map("messages")
+}
+
+// ============================================
+// AI INTERACTIONS MANAGEMENT
+// ============================================
+
+enum AIProvider {
+  OPENAI
+  CLAUDE
+  GEMINI
+  CUSTOM
+}
+
+model AIInteraction {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Client reference
+  clientId        String      @db.ObjectId
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Message that triggered this AI interaction
+  triggerMessageId String     @db.ObjectId
+  triggerMessage  Message     @relation(fields: [triggerMessageId], references: [id])
+
+  // AI processing details
+  userMessage     String
+  aiResponse      String
+  intent          String?     // Detected intent (property_inquiry, booking, etc.)
+  confidence      Float?      // Confidence score for intent detection
+  entities       Json?       // Extracted entities {property_type: "apartment", location: "Riyadh"}
+
+  // AI model information
+  provider        AIProvider  @default(OPENAI)
+  model           String      @default("gpt-4")
+  tokensUsed      Int?
+  processingTime  Int?        // in milliseconds
+
+  // Related properties (if AI suggested properties)
+  propertyIds     String[]    @db.ObjectId
+
+  // Context and memory
+  context         Json?       // Conversation context for memory
+  isEdited        Boolean     @default(false)
+  editedBy        String?     @db.ObjectId // User ID if edited by admin
+  editedAt        DateTime?
+
+  // Metadata
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([clientId])
+  @@index([triggerMessageId])
+  @@index([intent])
+  @@index([createdAt])
+  @@map("ai_interactions")
+}
+
+// ============================================
+// FILE MANAGEMENT
+// ============================================
+
+enum FileType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  PDF
+  SPREADSHEET
+  PRESENTATION
+  ARCHIVE
+  OTHER
+}
+
+model File {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Client reference
+  clientId        String    @db.ObjectId
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // File details
+  fileName        String
+  fileUrl         String
+  fileType        FileType
+  fileSize        Int       // in bytes
+  mimeType        String?
+  thumbnailUrl    String?
+
+  // Source information
+  uploadedByClient Boolean  @default(true)
+  messageId       String?   @db.ObjectId // If file was sent in a message
+  message         Message?  @relation(fields: [messageId], references: [id])
+
+  // Metadata
+  createdAt       DateTime  @default(now())
+
+  @@index([clientId])
+  @@index([fileType])
+  @@index([createdAt])
+  @@map("files")
+}
+
+// ============================================
+// PROPERTY MANAGEMENT
+// ============================================
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  HOUSE
+  STUDIO
+  PENTHOUSE
+  LAND
+  COMMERCIAL
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  RENTED
+  SOLD
+  MAINTENANCE
+  UNAVAILABLE
+}
+
+model Property {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Basic information
+  title           String
+  description     String
+  propertyType    PropertyType
+  status          PropertyStatus @default(AVAILABLE)
+
+  // Location
+  address         String
+  city            String
+  neighborhood    String?
+  latitude        Float?
+  longitude       Float?
+
+  // Specifications
+  bedrooms        Int?
+  bathrooms       Int?
+  area            Float          // in square meters
+  floor           Int?
+
+  // Pricing
+  price           Float
+  currency        String         @default("SAR")
+  pricePeriod     String?        // monthly, yearly, daily
+
+  // Media
+  images          String[]       // Array of image URLs
+  videos          String[]       // Array of video URLs
+  virtualTourUrl  String?
+
+  // Features and amenities
+  amenities       String[]       // ["parking", "pool", "gym", "elevator"]
+
+  // Contact information
+  contactName     String?
+  contactPhone    String?
+  contactEmail    String?
+
+  // Metadata
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  isActive        Boolean        @default(true)
+
+  @@index([propertyType])
+  @@index([status])
+  @@index([city])
+  @@index([price])
+  @@index([createdAt])
+  @@map("properties")
+}
+
+// ============================================
+// TEMPLATE MANAGEMENT
+// ============================================
+
+enum TemplateType {
+  WELCOME
+  PROPERTY_DETAILS
+  BOOKING_CONFIRMATION
+  FOLLOW_UP
+  CUSTOM
+}
+
+model Template {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  type            TemplateType
+  content         String
+  variables       String[]      // Placeholder variables like {name}, {property_title}
+  language        String        @default("ar")
+  
+  // Usage tracking
+  usageCount      Int           @default(0)
+  lastUsed        DateTime?
+
+  // Status
+  isActive        Boolean       @default(true)
+
+  // Metadata
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@map("templates")
+}
+
+// ============================================
+// ANALYTICS & STATISTICS
+// ============================================
+
+model DailyStats {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  date            DateTime  @unique
+  
+  // Client metrics
+  totalClients    Int       @default(0)
+  newClients      Int       @default(0)
+  activeClients   Int       @default(0)
+
+  // Message metrics
+  totalMessages   Int       @default(0)
+  incomingMessages Int      @default(0)
+  outgoingMessages Int      @default(0)
+
+  // AI metrics
+  aiInteractions  Int       @default(0)
+  totalTokens     Int       @default(0)
+  popularIntents  String[]  // Most common intents of the day
+
+  // Performance metrics
+  avgResponseTime Float?    // in seconds
+  satisfactionRate Float?   // percentage
+
+  // Metadata
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@map("daily_stats")
+}
+
+// ============================================
+// SYSTEM SETTINGS
+// ============================================
+
+model SystemSetting {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  key             String   @unique
+  value           String
+  description     String?
+  category        String?  // "whatsapp", "ai", "general"
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+  @@map("system_settings")
+}
