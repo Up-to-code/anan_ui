@@ -1,67 +1,62 @@
+// components/ui/ToastContext.tsx
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useRef,
-  useCallback,
-  ReactNode,
-} from 'react';
-
-type ToastType = 'success' | 'error' | 'warning' | 'info';
+import React, { createContext, useContext, useState } from 'react';
 
 export interface Toast {
   id: string;
-  message: string;
-  type: ToastType;
+  title: string;
+  message?: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  duration?: number;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  showToast: (message: string, type?: ToastType) => void;
-  hideToast: (id: string) => void;
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
 }
 
-const ToastContext = createContext<ToastContextType | null>(null);
+const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-function generateId() {
-  // More stable id than Math.random
-  return (
-    Date.now().toString(36) +
-    Math.random().toString(36).slice(2, 8)
-  );
-}
-
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const timers = useRef<{ [id: string]: ReturnType<typeof setTimeout> }>({});
 
-  const hideToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-    if (timers.current[id]) {
-      clearTimeout(timers.current[id]);
-      delete timers.current[id];
+  const generateId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
     }
-  }, []);
+    // fallback: Math.random-based (impure, but used only as fallback)
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  };
 
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+  const addToast = (toast: Omit<Toast, 'id'>) => {
     const id = generateId();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    timers.current[id] = setTimeout(() => hideToast(id), 3000);
-  }, [hideToast]);
+    const newToast = { ...toast, id };
+    setToasts(prev => [...prev, newToast]);
+
+    if (toast.duration !== 0) {
+      setTimeout(() => {
+        removeToast(id);
+      }, toast.duration || 5000);
+    }
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  };
 
   return (
-    <ToastContext.Provider value={{ toasts, showToast, hideToast }}>
+    <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
     </ToastContext.Provider>
   );
 }
 
-export function useToast(): ToastContextType {
-  const ctx = useContext(ToastContext);
-  if (!ctx) {
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (context === undefined) {
     throw new Error('useToast must be used within a ToastProvider');
   }
-  return ctx;
+  return context;
 }

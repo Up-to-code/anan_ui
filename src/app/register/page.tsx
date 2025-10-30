@@ -1,9 +1,12 @@
 // app/register/page.tsx
-'use client';
+"use client";
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center" dir="rtl">
+    <div
+      className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center"
+      dir="rtl"
+    >
       <div className="max-w-md w-full mx-4">
         <div className="bg-white rounded-2xl p-8 border border-blue-100">
           {/* Header */}
@@ -12,7 +15,9 @@ export default function RegisterPage() {
               <span className="text-white font-semibold text-2xl">ع</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">أنشئ حساب جديد</h1>
-            <p className="text-gray-600 mt-2">انضم إلى منصة عنان للذكاء الاصطناعي</p>
+            <p className="text-gray-600 mt-2">
+              انضم إلى منصة عنان للذكاء الاصطناعي
+            </p>
           </div>
 
           {/* Register Form */}
@@ -74,9 +79,19 @@ export default function RegisterPage() {
             </div>
 
             <label className="flex items-start">
-              <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 ml-2" />
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 ml-2"
+              />
               <span className="text-sm text-gray-600">
-                أوافق على <a href="#" className="text-blue-600 hover:text-blue-700">الشروط والأحكام</a> و <a href="#" className="text-blue-600 hover:text-blue-700">سياسة الخصوصية</a>
+                أوافق على{" "}
+                <a href="#" className="text-blue-600 hover:text-blue-700">
+                  الشروط والأحكام
+                </a>{" "}
+                و{" "}
+                <a href="#" className="text-blue-600 hover:text-blue-700">
+                  سياسة الخصوصية
+                </a>
               </span>
             </label>
 
@@ -91,8 +106,11 @@ export default function RegisterPage() {
           {/* Footer */}
           <div className="mt-6 text-center">
             <p className="text-gray-600">
-              لديك حساب بالفعل؟{' '}
-              <a href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+              لديك حساب بالفعل؟{" "}
+              <a
+                href="/login"
+                className="text-blue-600 hover:text-blue-700 font-semibold"
+              >
                 سجل الدخول
               </a>
             </p>

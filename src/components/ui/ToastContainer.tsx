@@ -1,43 +1,77 @@
+// components/ui/ToastContainer.tsx
 'use client';
 
-import { useToast, Toast } from './ToastContext';
+import { useToast } from './ToastContext';
 
 export default function ToastContainer() {
-  const { toasts, hideToast } = useToast();
+  const { toasts, removeToast } = useToast();
+
+  const getToastStyles = (type: string) => {
+    const baseStyles = "max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5";
+    
+    switch (type) {
+      case 'success':
+        return `${baseStyles} border-r-4 border-green-500`;
+      case 'error':
+        return `${baseStyles} border-r-4 border-red-500`;
+      case 'warning':
+        return `${baseStyles} border-r-4 border-yellow-500`;
+      case 'info':
+        return `${baseStyles} border-r-4 border-blue-500`;
+      default:
+        return baseStyles;
+    }
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return '✅';
+      case 'error':
+        return '❌';
+      case 'warning':
+        return '⚠️';
+      case 'info':
+        return 'ℹ️';
+      default:
+        return '💡';
+    }
+  };
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 left-4 z-50 flex flex-col space-y-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-64 animate-in slide-in-from-right"
+          className={getToastStyles(toast.type)}
         >
-          <div className="flex items-start gap-3">
-            <span className="text-lg">{getIcon(toast.type)}</span>
-            <div className="flex-1">
-              <p className="text-sm text-gray-800">{toast.message}</p>
+          <div className="flex-1 w-0 p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 text-lg ml-3">
+                {getIcon(toast.type)}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">
+                  {toast.title}
+                </p>
+                {toast.message && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    {toast.message}
+                  </p>
+                )}
+              </div>
             </div>
-            <button 
-              onClick={() => hideToast(toast.id)}
-              className="text-gray-400 hover:text-gray-600 text-lg"
-              aria-label="إغلاق التنبيه"
+          </div>
+          <div className="flex border-l border-gray-200">
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-800 focus:outline-none"
             >
-              ×
+              ✕
             </button>
           </div>
         </div>
       ))}
     </div>
   );
-}
-
-// Use Toast["type"] for stricter typing and fix TS error
-function getIcon(type: Toast["type"]) {
-  const icons: Record<Toast["type"], string> = {
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: '💡'
-  };
-  return icons[type] ?? '💡';
 }

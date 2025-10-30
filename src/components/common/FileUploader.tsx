@@ -1,134 +1,220 @@
+// components/common/FileUploader.tsx
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useToast } from '../ui/ToastContext';
 
+interface UploadedFile {
+  id: string;
+  file: File;
+  progress: number;
+  status: 'uploading' | 'completed' | 'error';
+  url?: string;
+}
+
 export default function FileUploader() {
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const { showToast } = useToast();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { addToast } = useToast();
 
-  const handleFiles = useCallback((files: File[]) => {
-    const validFiles = files.filter(file =>
-      file.type.startsWith('image/') ||
-      file.type.startsWith('application/pdf') ||
-      file.type.includes('text')
-    );
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
 
-    if (validFiles.length > 0) {
-      setUploadedFiles(prev => [...prev, ...validFiles]);
-      showToast(`تم رفع ${validFiles.length} ملف بنجاح`, 'success');
-    } else {
-      showToast('يرجى اختيار ملفات صالحة (صور، PDF، نصوص)', 'error');
-    }
-  }, [showToast]);
+    const newFiles: UploadedFile[] = Array.from(files).map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      progress: 0,
+      status: 'uploading'
+    }));
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+    setUploadedFiles(prev => [...prev, ...newFiles]);
+
+    // Simulate upload process
+    newFiles.forEach(file => {
+      simulateUpload(file.id);
+    });
+
+    addToast({
+      title: 'تم رفع الملفات',
+      message: `تم بدء رفع ${files.length} ملف`,
+      type: 'success'
+    });
+  };
+
+  const simulateUpload = (fileId: string) => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 20;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        
+        setUploadedFiles(prev => prev.map(f => 
+          f.id === fileId 
+            ? { ...f, progress: 100, status: 'completed' }
+            : f
+        ));
+
+        addToast({
+          title: 'اكتمال الرفع',
+          message: 'تم رفع الملف بنجاح',
+          type: 'success'
+        });
+      } else {
+        setUploadedFiles(prev => prev.map(f => 
+          f.id === fileId ? { ...f, progress } : f
+        ));
+      }
+    }, 200);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
-  }, []);
+  };
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-  }, []);
+  };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  };
 
-    const files = Array.from(e.dataTransfer.files);
-    handleFiles(files);
-  }, [handleFiles]);
+  const removeFile = (fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    addToast({
+      title: 'تم الحذف',
+      message: 'تم إزالة الملف',
+      type: 'info'
+    });
+  };
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    handleFiles(files);
-  }, [handleFiles]);
+  const getStatusColor = (status: UploadedFile['status']) => {
+    switch (status) {
+      case 'uploading': return 'bg-blue-500';
+      case 'completed': return 'bg-green-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
 
-  const removeFile = useCallback((index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
-    showToast('تم حذف الملف', 'info');
-  }, [showToast]);
+  const getStatusText = (status: UploadedFile['status']) => {
+    switch (status) {
+      case 'uploading': return 'جاري الرفع';
+      case 'completed': return 'مكتمل';
+      case 'error': return 'خطأ';
+      default: return 'معلق';
+    }
+  };
 
   return (
-    <div className="w-full max-w-lg mx-auto">
+    <div className="max-w-4xl mx-auto px-6">
+      {/* Upload Area */}
       <div
-        className={`border border-blue-200/70 rounded-2xl bg-white shadow-sm p-0 transition relative group
-        ${isDragging ? 'ring-2 ring-blue-400' : 'hover:border-blue-400'}`}
-        dir="rtl"
+        className={`
+          border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer
+          ${isDragging 
+            ? 'border-blue-400 bg-blue-50' 
+            : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+          }
+        `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
       >
+        <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <span className="text-3xl text-blue-600">📁</span>
+        </div>
+        
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">
+          اسحب وأفلت الملفات هنا
+        </h3>
+        
+        <p className="text-gray-600 mb-6">
+          أو انقر لاختيار الملفات من جهازك
+        </p>
+        
         <button
-          type="button"
-          className="w-full flex flex-col items-center justify-center pt-10 pb-7 px-5 bg-gradient-to-bl from-white to-blue-50 rounded-t-2xl cursor-pointer transition outline-none border-none"
-          onClick={() => inputRef.current?.click()}
-          tabIndex={0}
+          className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
         >
-          <span className="flex items-center justify-center w-14 h-14 mb-3 rounded-full bg-blue-50 border border-blue-100">
-            <svg className="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-8m-4 4h8" />
-            </svg>
-          </span>
-          <span className="text-base font-semibold text-blue-800 mb-2">اسحب أو اختر ملفًا للرفع</span>
-          <span className="text-xs text-gray-500 mb-3">png, jpg, pdf, txt, doc (الحد الأقصى: 10MB)</span>
-          <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md text-sm hover:bg-blue-700 transition-colors">
-            اختيار الملفات
-          </span>
+          اختر الملفات
         </button>
+        
         <input
-          ref={inputRef}
+          ref={fileInputRef}
           type="file"
           multiple
-          onChange={handleFileInput}
-          className="sr-only"
-          id="file-upload"
-          accept="image/*,.pdf,.txt,.doc,.docx"
+          className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files)}
         />
+        
+        <p className="text-sm text-gray-500 mt-4">
+          PNG, JPG, PDF, DOCX حتى 10MB
+        </p>
       </div>
 
+      {/* Uploaded Files List */}
       {uploadedFiles.length > 0 && (
-        <div className="mt-7">
-          <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-5 overflow-hidden">
-            <h4 className="text-sm font-semibold text-blue-800 mb-3">الملفات المرفوعة</h4>
-            <div className="flex flex-col gap-2">
-              {uploadedFiles.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-white border border-blue-100/70 group"
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="flex items-center justify-center bg-blue-50 border border-blue-100 rounded-full w-7 h-7 mr-2">
-                      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M7 17V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v10M7 17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m0 12v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2"
-                        />
-                      </svg>
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-sm text-blue-900 truncate">{file.name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                    </div>
+        <div className="mt-8 bg-white rounded-2xl border border-gray-200 p-6">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">
+            الملفات المرفوعة ({uploadedFiles.length})
+          </h4>
+          
+          <div className="space-y-4">
+            {uploadedFiles.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+              >
+                <div className="flex items-center flex-1">
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center ml-4">
+                    <span className="text-lg">📄</span>
                   </div>
+                  
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-sm">
+                      {file.file.name}
+                    </p>
+                    <p className="text-gray-500 text-xs">
+                      {(file.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-4 space-x-reverse">
+                  <div className="text-right ml-4">
+                    <span className={`inline-block w-3 h-3 rounded-full ${getStatusColor(file.status)} ml-2`}></span>
+                    <span className="text-sm text-gray-600">
+                      {getStatusText(file.status)}
+                    </span>
+                  </div>
+
+                  <div className="w-32 bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${getStatusColor(file.status)}`}
+                      style={{ width: `${file.progress}%` }}
+                    ></div>
+                  </div>
+
                   <button
-                    onClick={() => removeFile(index)}
-                    className="ml-3 text-red-400 hover:text-red-600 transition-colors p-1"
-                    aria-label="حذف الملف"
-                    tabIndex={0}
+                    onClick={() => removeFile(file.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-2"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3m-7 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3m1 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7z" />
-                    </svg>
+                    ✕
                   </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
